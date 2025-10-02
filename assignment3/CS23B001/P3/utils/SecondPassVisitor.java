@@ -19,7 +19,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
 
    static int counter = 10000;
    static int labelCounter = 0; 
-   static int paramCounter = 0; 
+   static int paramCounter = 1; 
 
    public HashMap<String, Integer> varToTemp = new HashMap<>();
    // public HashSet<String> allVars = new HashSet<>();
@@ -195,7 +195,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       StringBuilder name = n.f1.accept(this, argu);
       if (inMethod) {
          // allVars.add(String.valueOf(name));
-         varToTemp.put(String.valueOf(name),fresh());
+         varToTemp.put(String.valueOf(name), fresh());
+         ans.append("\nMOVE TEMP ").append(varToTemp.get(name.toString())).append(" 0");
       }
       n.f2.accept(this, argu);
       return ans;
@@ -223,20 +224,20 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f1.accept(this, argu);
       StringBuilder currMethod=n.f2.accept(this, argu);
       n.f3.accept(this, argu);
-      paramCounter = 0;
+      paramCounter = 1;
       n.f4.accept(this, argu);
-      paramCounter = 0;
+      paramCounter = 1;
       int paramCount = countParamStars(currClass.toString(), currMethod.toString());
-      ans.append(currClass).append("_").append(currMethod).append("\t[ ").append(String.valueOf(paramCount)).append(" ]\n");
+      ans.append(currClass).append("_").append(currMethod).append("\t[ ").append(String.valueOf(paramCount)).append(" ]\nBEGIN\n");
       n.f5.accept(this, argu);
       n.f6.accept(this, argu);
-      n.f7.accept(this, argu);
+      ans.append(n.f7.accept(this, argu));
       ans.append(n.f8.accept(this, argu));
       ans.append("RETURN\t");
       n.f9.accept(this, argu);
       String ret=String.valueOf(n.f10.accept(this, argu));
-      if (varToTemp.containsKey(ret)) {
-         ans.append("TEMP ").append(varToTemp.get(ret));
+      if (ret.length() > 5 && Character.isDigit(ret.charAt(5))) {
+         ans.append(" ").append(ret);
       } else {
          ans.append(ret);
       }
@@ -379,8 +380,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f3 -> ";"
     */
    public StringBuilder visit(AssignmentStatement n, A argu) {
-      StringBuilder ans=new StringBuilder("\nMOVE TEMP ");
-      ans.append(varToTemp.get(String.valueOf(n.f0.accept(this, argu))));
+      StringBuilder ans=new StringBuilder("\nMOVE ");
+      ans.append(n.f0.accept(this, argu));
       n.f1.accept(this, argu);
       ans.append(" ");
       ans.append(n.f2.accept(this, argu));
@@ -399,8 +400,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f6 -> ";"
     */
    public StringBuilder visit(ArrayAssignmentStatement n, A argu) {
-      StringBuilder ans=new StringBuilder("\nHSTORE TEMP ");
-      ans.append(varToTemp.get(String.valueOf(n.f0.accept(this, argu))));
+      StringBuilder ans=new StringBuilder("\nHSTORE ");
+      ans.append(n.f0.accept(this, argu));
       String temp1 = String.valueOf(fresh());
       String temp2 = String.valueOf(fresh());
       String temp3 = String.valueOf(fresh());
@@ -530,9 +531,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     *       | PrimaryExpression()
     */
    public StringBuilder visit(Expression n, A argu) {
-      StringBuilder ans=new StringBuilder("");
-      ans.append(n.f0.accept(this, argu));
-      return ans;
+
+      return n.f0.accept(this, argu);
    }
 
    /**
@@ -686,7 +686,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       StringBuilder expr=n.f2.accept(this, argu);
       n.f3.accept(this, argu);
       ans.append("\nBEGIN\n");
-      ans.append("MOVE TEMP ").append(temp1).append(" PLUS TEMP ").append(varToTemp.get(name.toString()));
+      ans.append("MOVE TEMP ").append(temp1).append(" PLUS ").append(name);
       ans.append(" TIMES 4 PLUS 1 ").append(expr);
       ans.append("\nHLOAD TEMP ").append(temp2).append(" TEMP ").append(temp1).append(" 0");
       ans.append("\nRETURN TEMP ").append(temp2);
@@ -706,7 +706,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f1.accept(this, argu);
       n.f2.accept(this, argu);
       ans.append("\nBEGIN\n");
-      ans.append("HLOAD TEMP ").append(temp1).append(" TEMP ").append(varToTemp.get(name.toString())).append(" 0");
+      ans.append("HLOAD TEMP ").append(temp1).append(" ").append(name).append(" 0");
       ans.append("\nRETURN TEMP ").append(temp1);
       ans.append("\nEND\n");
       return ans;
@@ -801,7 +801,11 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(Identifier n, A argu) {
       n.f0.accept(this, argu);
-      return new StringBuilder(n.f0.toString());
+      String name = n.f0.toString();
+      if (varToTemp.containsKey(name)) {
+         return new StringBuilder("TEMP ").append(varToTemp.get(name));
+      }
+      return new StringBuilder(name);
    }
 
    /**
@@ -827,12 +831,30 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nBEGIN\n");
       String temp1 = String.valueOf(fresh());
       String temp2 = String.valueOf(fresh());
+      String temp3 = String.valueOf(fresh());
+      String temp4 = String.valueOf(fresh());
+      StringBuilder label1=getLabel();
+      StringBuilder label2=getLabel();
       n.f1.accept(this, argu);
       n.f2.accept(this, argu);
       StringBuilder sz = n.f3.accept(this, argu);
       ans.append("MOVE TEMP ").append(temp2).append(" PLUS 1 ").append(sz);
-      ans.append("\nMOVE TEMP ").append(temp1).append(" HALLOCATE TIMES ").append(temp2).append(" 4");
-      ans.append("\nHSTORE TEMP ").append(temp1).append(" 0 TEMP ").append(sz);
+      ans.append("\nMOVE TEMP ").append(temp1).append(" HALLOCATE TIMES TEMP ").append(temp2).append(" 4");
+      ans.append("\nMOVE TEMP ").append(temp3).append(" 0\n");
+
+      ans.append(label1).append("\tCJUMP LE TEMP ").append(temp3).append(" ").append(sz).append(" ").append(label2);
+
+      ans.append("\nMOVE TEMP ").append(temp4).append(" PLUS TEMP ").append(temp1)
+         .append(" TIMES TEMP ").append(temp3).append(" 4");
+      ans.append("\nHSTORE TEMP ").append(temp4).append(" 0 0");
+
+      // increment counter
+      ans.append("\nMOVE TEMP ").append(temp3).append(" PLUS TEMP ").append(temp3).append(" 1");
+      ans.append("\nJUMP ").append(label1);
+
+      // EXIT
+      ans.append("\n").append(label2);
+      ans.append("\tHSTORE TEMP ").append(temp1).append(" 0 ").append(sz);
       ans.append("\nRETURN TEMP ").append(temp1).append("\nEND\n");
       n.f4.accept(this, argu);
       return ans;
