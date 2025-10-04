@@ -22,7 +22,9 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    static int paramCounter = 1; 
 
    public HashMap<String, Integer> varToTemp = new HashMap<>();
-   // public HashSet<String> allVars = new HashSet<>();
+   public HashMap<String, HashMap<String,Integer>> methodIndex = new HashMap<>();
+   public HashMap<String, HashMap<String,Integer>> varIndex = new HashMap<>();
+   public HashMap<String, String> varToClass = new HashMap<>();
    public boolean inMethod = false;
    public StringBuilder currClass = new StringBuilder("");
    public allclasses ac;
@@ -156,7 +158,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(ClassDeclaration n, A argu) {
       n.f0.accept(this, argu);
-      currClass=n.f1.accept(this, argu);
+      currClass = n.f1.accept(this, argu);
+      addClassInfo(currClass.toString());
       n.f2.accept(this, argu);
       n.f3.accept(this, argu);
       n.f5.accept(this, argu);
@@ -176,6 +179,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    public StringBuilder visit(ClassExtendsDeclaration n, A argu) {
       n.f0.accept(this, argu);
       currClass=n.f1.accept(this, argu);
+      addClassInfo(currClass.toString());
       n.f2.accept(this, argu);
       n.f3.accept(this, argu);
       n.f4.accept(this, argu);
@@ -191,13 +195,14 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(VarDeclaration n, A argu) {
       StringBuilder ans=new StringBuilder("");
-      n.f0.accept(this, argu);
+      StringBuilder type=n.f0.accept(this, argu);
       StringBuilder name = n.f1.accept(this, argu);
       if (inMethod) {
-         // allVars.add(String.valueOf(name));
          varToTemp.put(String.valueOf(name), fresh());
          ans.append("\nMOVE TEMP ").append(varToTemp.get(name.toString())).append(" 0");
       }
+      if(type.length()>0)
+         varToClass.put(name.toString(), type.toString());
       n.f2.accept(this, argu);
       return ans;
    }
@@ -228,25 +233,19 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f4.accept(this, argu);
       paramCounter = 1;
       int paramCount = countParamStars(currClass.toString(), currMethod.toString());
-      ans.append(currClass).append("_").append(currMethod).append("\t[ ").append(String.valueOf(paramCount)).append(" ]\nBEGIN\n");
+      ans.append(currClass).append("___").append(currMethod).append("\t[ ").append(String.valueOf(paramCount)).append(" ]\nBEGIN\n");
       n.f5.accept(this, argu);
       n.f6.accept(this, argu);
       ans.append(n.f7.accept(this, argu));
       ans.append(n.f8.accept(this, argu));
       ans.append("RETURN\t");
       n.f9.accept(this, argu);
-      String ret=String.valueOf(n.f10.accept(this, argu));
-      if (ret.length() > 5 && Character.isDigit(ret.charAt(5))) {
-         ans.append(" ").append(ret);
-      } else {
-         ans.append(ret);
-      }
+      ans.append(n.f10.accept(this, argu));
       n.f11.accept(this, argu);
       n.f12.accept(this, argu);
       ans.append("\nEND\n");
       inMethod = false;
       varToTemp.clear();
-      // allVars.clear();
       return ans;
    }
 
@@ -269,7 +268,6 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       StringBuilder ans=new StringBuilder("");
       n.f0.accept(this, argu);
       String name=(n.f1.accept(this, argu)).toString();
-      // allVars.add(name);
       varToTemp.put(name, paramCounter++);
       return ans;
    }
@@ -292,10 +290,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     *       | Identifier()
     *       | LambdaType()
     */
-   public StringBuilder visit(Type n, A argu) {
-      StringBuilder ans=new StringBuilder("");
-      n.f0.accept(this, argu);
-      return ans;
+    public StringBuilder visit(Type n, A argu) {
+      return n.f0.accept(this, argu);
    }
 
    /**
@@ -401,7 +397,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(ArrayAssignmentStatement n, A argu) {
       StringBuilder ans=new StringBuilder("\nHSTORE ");
-      ans.append(n.f0.accept(this, argu));
+      ans.append("\nPLUS ").append(n.f0.accept(this, argu)).append(" ");
       String temp1 = String.valueOf(fresh());
       String temp2 = String.valueOf(fresh());
       String temp3 = String.valueOf(fresh());
@@ -411,6 +407,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nMOVE TEMP ").append(temp2).append(" TIMES 4 TEMP ").append(temp1);
       ans.append("\nRETURN TEMP ").append(temp2);
       ans.append("\nEND\n");
+      ans.append(" 0 ");
       n.f3.accept(this, argu);
       n.f4.accept(this, argu);
       ans.append("\nBEGIN\n");
@@ -437,7 +434,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f4 -> Statement()
     */
    public StringBuilder visit(IfthenStatement n, A argu) {
-      StringBuilder ans = new StringBuilder("CJUMP ");
+      StringBuilder ans = new StringBuilder("\nCJUMP ");
       n.f0.accept(this, argu);
       n.f1.accept(this, argu);
       ans.append(n.f2.accept(this, argu));
@@ -459,7 +456,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f6 -> Statement()
     */
    public StringBuilder visit(IfthenElseStatement n, A argu) {
-      StringBuilder ans = new StringBuilder("CJUMP ");
+      StringBuilder ans = new StringBuilder("\nCJUMP ");
       n.f0.accept(this, argu);
       n.f1.accept(this, argu);
       ans.append(n.f2.accept(this, argu));
@@ -483,7 +480,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f4 -> Statement()
     */
    public StringBuilder visit(WhileStatement n, A argu) {
-      StringBuilder ans = new StringBuilder("");
+      StringBuilder ans = new StringBuilder("\n");
       StringBuilder startLabel = getLabel();
       StringBuilder endLabel = getLabel();
       ans.append(startLabel).append("\tCJUMP ");
@@ -531,7 +528,6 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     *       | PrimaryExpression()
     */
    public StringBuilder visit(Expression n, A argu) {
-
       return n.f0.accept(this, argu);
    }
 
@@ -612,7 +608,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f2 -> PrimaryExpression()
     */
    public StringBuilder visit(neqExpression n, A argu) {
-      StringBuilder ans=new StringBuilder("nE ");
+      StringBuilder ans=new StringBuilder("NE ");
       ans.append(n.f0.accept(this, argu)).append(" ");
       n.f1.accept(this, argu);
       ans.append(n.f2.accept(this, argu));
@@ -721,12 +717,23 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f5 -> ")"
     */
    public StringBuilder visit(MessageSend n, A argu) {
-      StringBuilder ans=new StringBuilder("");
-      n.f0.accept(this, argu);
+      StringBuilder ans = new StringBuilder("\nCALL \nBEGIN\n");
+      StringBuilder temp1 = new StringBuilder("TEMP ").append(fresh()); //this
+      StringBuilder temp2 = new StringBuilder("TEMP ").append(fresh()); // vtable
+      StringBuilder temp3 = new StringBuilder("TEMP ").append(fresh()); //actual funcn
+      ans.append("MOVE ").append(temp1).append(" ");
+      StringBuilder PE = n.f0.accept(this, argu);
+      ans.append(PE);
       n.f1.accept(this, argu);
-      n.f2.accept(this, argu);
+      StringBuilder name = n.f2.accept(this, argu);
+      ans.append("\nHLOAD ").append(temp2).append(" ").append(temp1).append(" 0");
+      int offset = getOffset(PE,name);
+      ans.append("\nHLOAD ").append(temp3).append(" ").append(temp2).append(" ").append(offset);
+      ans.append("\nRETURN ").append(temp3);
+      ans.append("\nEND\n");
+      ans.append("( ").append(temp1).append(" ");
       n.f3.accept(this, argu);
-      n.f4.accept(this, argu);
+      ans.append(n.f4.accept(this, argu)).append(" )");
       n.f5.accept(this, argu);
       return ans;
    }
@@ -737,8 +744,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(ExpressionList n, A argu) {
       StringBuilder ans=new StringBuilder("");
-      n.f0.accept(this, argu);
-      n.f1.accept(this, argu);
+      ans.append(n.f0.accept(this, argu));
+      ans.append(n.f1.accept(this, argu));
       return ans;
    }
 
@@ -749,7 +756,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    public StringBuilder visit(ExpressionRest n, A argu) {
       StringBuilder ans=new StringBuilder("");
       n.f0.accept(this, argu);
-      n.f1.accept(this, argu);
+      ans.append(" ").append(n.f1.accept(this, argu));
       return ans;
    }
 
@@ -812,7 +819,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f0 -> "this"
     */
    public StringBuilder visit(ThisExpression n, A argu) {
-      StringBuilder ans=new StringBuilder("");
+      StringBuilder ans=new StringBuilder("TEMP 0");
       n.f0.accept(this, argu);
       return ans;
    }
@@ -848,11 +855,9 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
          .append(" TIMES TEMP ").append(temp3).append(" 4");
       ans.append("\nHSTORE TEMP ").append(temp4).append(" 0 0");
 
-      // increment counter
       ans.append("\nMOVE TEMP ").append(temp3).append(" PLUS TEMP ").append(temp3).append(" 1");
       ans.append("\nJUMP ").append(label1);
 
-      // EXIT
       ans.append("\n").append(label2);
       ans.append("\tHSTORE TEMP ").append(temp1).append(" 0 ").append(sz);
       ans.append("\nRETURN TEMP ").append(temp1).append("\nEND\n");
@@ -869,9 +874,10 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    public StringBuilder visit(AllocationExpression n, A argu) {
       StringBuilder ans=new StringBuilder("");
       n.f0.accept(this, argu);
-      n.f1.accept(this, argu);
+      String className = n.f1.accept(this, argu).toString();
       n.f2.accept(this, argu);
       n.f3.accept(this, argu);
+      ans.append(addClassInfo(className));
       return ans;
    }
 
@@ -907,7 +913,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    
    private int countParamStars(String currClass, String currMethod) {
       classinfo ci = ac.classes.get(currClass);
-      String type = ci.methods.get(currMethod);
+      String type = ci.methods.get(currClass+"___"+currMethod);
       if (type.charAt(0) == '-') {
          return 1;
       }
@@ -925,4 +931,71 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       labelCounter++;
       return new StringBuilder("L").append(labelCounter);
    }
+
+   private StringBuilder addClassInfo(String className) {
+      classinfo ci = ac.classes.get(className);
+      StringBuilder ans = new StringBuilder("\nBEGIN\n");
+      StringBuilder temp1 = new StringBuilder("TEMP ").append(fresh()); //class obj
+      StringBuilder temp2 = new StringBuilder("TEMP ").append(fresh()); //vtable
+      StringBuilder temp3 = new StringBuilder("TEMP ").append(fresh()); //tempvar
+      StringBuilder temp4 = new StringBuilder("TEMP ").append(fresh()); //tempvar 2
+      StringBuilder label1 = getLabel();
+      StringBuilder label2 = getLabel();
+      ans.append("MOVE ").append(temp1).append(" HALLOCATE ").append((ci.vars.size() + 1) * 4);
+      ans.append("\nMOVE ").append(temp2).append(" HALLOCATE ").append(ci.methods.size() * 4);
+      ans.append("\nMOVE ").append(temp3).append(" 0\n");
+
+      ans.append(label1).append("\tCJUMP LE ").append(temp3).append(" ").append(ci.vars.size() + 1).append(" ")
+            .append(label2);
+
+      ans.append("\nMOVE ").append(temp4).append(" PLUS ").append(temp1)
+            .append(" TIMES ").append(temp3).append(" 4");
+      ans.append("\nHSTORE ").append(temp4).append(" 0 0");
+
+      ans.append("\nMOVE ").append(temp3).append(" PLUS ").append(temp3).append(" 1");
+      ans.append("\nJUMP ").append(label1);
+
+      ans.append("\n").append(label2);
+      int index = 0;
+      for (String key : ci.methods.keySet()) {
+         ans.append("\nHSTORE ").append(temp2).append(" ").append(index).append(" ").append(key);
+         if (!methodIndex.containsKey(className)) {
+            methodIndex.put(className, new HashMap<>());
+         }
+         methodIndex.get(className).put(key.substring(key.indexOf("___") + 3), index);
+         index += 4;
+      }
+      index = 4;
+      for (String key : ci.vars.keySet()) {
+         if (!varIndex.containsKey(className)) {
+            varIndex.put(className, new HashMap<>());
+         }
+         varIndex.get(className).put(key, index);
+         index += 4;
+      }
+      ans.append("\nHSTORE ").append(temp1).append(" 0 ").append(temp2);
+      ans.append("\nRETURN ").append(temp1);
+      ans.append("\nEND\n");
+      return ans;
+   }
+
+   int getOffset(StringBuilder PE, StringBuilder name) {
+      int ans = 0;
+      if(PE.toString().startsWith("TEMP")){
+         int temp = Integer.parseInt(PE.substring(5));
+         if (temp == 0) {
+            return methodIndex.get(currClass.toString()).get(name.toString());
+         }
+         String varName = "";
+         for (Map.Entry<String, Integer> entry : varToTemp.entrySet()) {
+            if (entry.getValue().equals(temp)) {
+               varName = entry.getKey();
+            }
+         }
+         String varType = varToClass.get(varName);
+         return methodIndex.get(varType).get(name.toString());
+      }
+
+      return ans;
+   }  
 }

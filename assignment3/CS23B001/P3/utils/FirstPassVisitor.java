@@ -11,10 +11,16 @@ import java.util.*;
  * Provides default methods which visit each node in the tree in depth-first
  * order.  Your visitors may extend this class.
  */
+@SuppressWarnings("override")
 public class FirstPassVisitor extends GJDepthFirst<classinfo,allclasses> {
    //
    // Auto class visitors--probably don't need to be overridden.
    //
+
+
+   String currClass = "";
+
+
    public classinfo visit(NodeList n, allclasses argu) {
       classinfo ci = new classinfo();
       ci.name = "";
@@ -175,6 +181,7 @@ public class FirstPassVisitor extends GJDepthFirst<classinfo,allclasses> {
       classinfo ci=new classinfo();
       n.f0.accept(this, argu);
       ci.name = n.f1.accept(this, argu).name;
+      currClass = ci.name;
       n.f2.accept(this, argu);
       classinfo cf3 = n.f3.accept(this, argu);
       if(cf3!=null&&cf3.vars!=null)
@@ -200,6 +207,7 @@ public class FirstPassVisitor extends GJDepthFirst<classinfo,allclasses> {
       classinfo ci=new classinfo();
       n.f0.accept(this, argu);
       ci.name = n.f1.accept(this, argu).name;
+      currClass = ci.name;
       n.f2.accept(this, argu);
       ci.parent=n.f3.accept(this, argu).name;
       n.f4.accept(this, argu);
@@ -258,7 +266,7 @@ public class FirstPassVisitor extends GJDepthFirst<classinfo,allclasses> {
       n.f10.accept(this, argu);
       n.f11.accept(this, argu);
       n.f12.accept(this, argu);
-      ci.methods.put(funName, params.concat("->").concat(retType));
+      ci.methods.put(currClass + "___" + funName, params.concat("->").concat(retType));
       return ci;
    }
 

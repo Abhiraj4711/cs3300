@@ -16,11 +16,17 @@ public class classinfo {
         }
     }
 
-    public void addParentMethods(allclasses c){
+    public void addParentMethods(allclasses c) {
         if (!"ThisIsTheFinalClassNoClassAboveThis".equals(parent)) {
             classinfo ci = c.classes.get(parent);
             ci.addParentMethods(c);
-            ci.methods.forEach((k, v) -> methods.putIfAbsent(k, v));
+            
+            ci.methods.forEach((k, v) -> {
+                String methName = k.substring(k.indexOf("___") + 3);
+                if (!methods.containsKey(name + "___" + methName)) {
+                    methods.put(k, v);
+                }
+            });
         }
     }
 }
