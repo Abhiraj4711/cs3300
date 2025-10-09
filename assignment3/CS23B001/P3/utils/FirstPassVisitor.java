@@ -228,7 +228,7 @@ public class FirstPassVisitor extends GJDepthFirst<classinfo,allclasses> {
     */
    public classinfo visit(VarDeclaration n, allclasses argu) {
       classinfo ci=new classinfo();
-      ci.vars.put(n.f1.accept(this, argu).name, n.f0.accept(this, argu).name);
+      ci.vars.put(currClass+"___"+n.f1.accept(this, argu).name,n.f0.accept(this, argu).name);
       n.f2.accept(this, argu);
       return ci;
    }
