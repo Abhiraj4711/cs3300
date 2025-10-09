@@ -1,10 +1,11 @@
 package utils;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 public class classinfo {
     public String name;
-    public HashMap<String, String> vars=new HashMap<>();
-    public HashMap<String, String> methods=new HashMap<>();
+    public HashMap<String, String> vars=new LinkedHashMap<>();
+    public HashMap<String, String> methods=new LinkedHashMap<>();
     public String parent="ThisIsTheFinalClassNoClassAboveThis";
     // if it is the final class, ie it has no parents its parent will be called : ThisIsTheFinalClassNoClassAboveThis
     public void addParentVars(allclasses c) {

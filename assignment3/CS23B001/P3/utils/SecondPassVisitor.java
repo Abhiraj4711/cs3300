@@ -6,6 +6,8 @@ package utils;
 import syntaxtree.*;
 import visitor.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Provides default methods which visit each node in the tree in depth-first
@@ -17,7 +19,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    // Auto class visitors--probably don't need to be overridden.
    //
 
-   static int counter = 10000;
+   static int counter = 1000;
    static int labelCounter = 0; 
    static int paramCounter = 1; 
 
@@ -26,7 +28,9 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
    public HashMap<String, HashMap<String,Integer>> varIndex = new HashMap<>();
    public HashMap<String, String> varToClass = new HashMap<>();
    public boolean inMethod = false;
+   public boolean hstoreCall = false;
    public StringBuilder currClass = new StringBuilder("");
+   public StringBuilder prevMessage = new StringBuilder("");
    public allclasses ac;
 
    public StringBuilder visit(NodeList n, A argu) {
@@ -266,9 +270,13 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     */
    public StringBuilder visit(FormalParameter n, A argu) {
       StringBuilder ans=new StringBuilder("");
-      n.f0.accept(this, argu);
+      StringBuilder type=n.f0.accept(this, argu);
       String name=(n.f1.accept(this, argu)).toString();
       varToTemp.put(name, paramCounter++);
+      if(type.length()>0){
+         varToClass.put(name, type.toString());
+         addClassInfo(type.toString());
+      }
       return ans;
    }
 
@@ -376,8 +384,14 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f3 -> ";"
     */
    public StringBuilder visit(AssignmentStatement n, A argu) {
-      StringBuilder ans=new StringBuilder("\nMOVE ");
-      ans.append(n.f0.accept(this, argu));
+      StringBuilder ans = new StringBuilder("\nMOVE ");
+      hstoreCall = true;
+      StringBuilder id=n.f0.accept(this, argu);
+      hstoreCall = false;
+      if (id.toString().startsWith("HSTORE TEMP 0")) {
+         ans = new StringBuilder("\n");
+      }
+      ans.append(id);
       n.f1.accept(this, argu);
       ans.append(" ");
       ans.append(n.f2.accept(this, argu));
@@ -404,7 +418,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f1.accept(this, argu);
       ans.append("\nBEGIN\n");
       ans.append("MOVE TEMP ").append(temp1).append(" ").append(n.f2.accept(this, argu));
-      ans.append("\nMOVE TEMP ").append(temp2).append(" TIMES 4 TEMP ").append(temp1);
+      ans.append("\nMOVE TEMP ").append(temp2).append(" TIMES 4 PLUS 1 TEMP ").append(temp1);
       ans.append("\nRETURN TEMP ").append(temp2);
       ans.append("\nEND\n");
       ans.append(" 0 ");
@@ -412,7 +426,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f4.accept(this, argu);
       ans.append("\nBEGIN\n");
       ans.append("MOVE TEMP ").append(temp3).append(" ").append(n.f5.accept(this, argu));
-      ans.append("\nRETURN ").append(temp3);
+      ans.append("\nRETURN TEMP ").append(temp3);
       ans.append("\nEND\n");
       n.f6.accept(this, argu);
       return ans;
@@ -442,7 +456,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append(" ").append(elseLabel);
       n.f3.accept(this, argu);
       ans.append(n.f4.accept(this, argu));
-      ans.append("\n").append(elseLabel).append("\n");
+      ans.append("\n").append(elseLabel).append(" NOOP\n");
       return ans;
    }
 
@@ -468,7 +482,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nJUMP ").append(endLabel).append("\n").append(elseLabel).append("\t");
       n.f5.accept(this, argu);
       ans.append(n.f6.accept(this, argu));
-      ans.append("\n").append(endLabel).append("\n");
+      ans.append("\n").append(endLabel).append(" NOOP\n");
       return ans;
    }
 
@@ -490,7 +504,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append(" ").append(endLabel);
       n.f3.accept(this, argu);
       ans.append(n.f4.accept(this, argu));
-      ans.append("JUMP ").append(startLabel).append("\n").append(endLabel).append("\n");
+      ans.append("JUMP ").append(startLabel).append("\n").append(endLabel).append(" NOOP\n");
       return ans;
    }
 
@@ -502,7 +516,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
     * f4 -> ";"
     */
    public StringBuilder visit(PrintStatement n, A argu) {
-      StringBuilder ans=new StringBuilder("\n\tPRINT ");
+      StringBuilder ans=new StringBuilder("\nPRINT ");
       n.f0.accept(this, argu);
       n.f1.accept(this, argu);
       ans.append(n.f2.accept(this, argu));
@@ -562,7 +576,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       n.f1.accept(this, argu);
       ans.append("\nCJUMP ").append(n.f2.accept(this, argu)).append(" ").append(label);
       ans.append("\nMOVE TEMP ").append(temp1).append(" 1\n");
-      ans.append(label).append("\tRETURN TEMP ").append(temp1);
+      ans.append(label).append(" NOOP\n").append("\tRETURN TEMP ").append(temp1);
       ans.append("\nEND\n");
       return ans;
    }
@@ -584,7 +598,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nCJUMP ").append(n.f2.accept(this, argu)).append(" ").append(label1);
       ans.append("\nJUMP ").append(label2).append("\n");
       ans.append(label1).append("\tMOVE TEMP ").append(temp1).append(" 0\n");
-      ans.append(label2).append("\nRETURN TEMP ").append(temp1);
+      ans.append(label2).append(" NOOP\n").append("\nRETURN TEMP ").append(temp1);
       ans.append("\nEND\n");
       return ans;
    }
@@ -812,6 +826,16 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       if (varToTemp.containsKey(name)) {
          return new StringBuilder("TEMP ").append(varToTemp.get(name));
       }
+      if (varIndex.containsKey(currClass.toString()) && varIndex.get(currClass.toString()).containsKey(name)) {
+         if (hstoreCall) {
+            return new StringBuilder("HSTORE TEMP 0 ").append(varIndex.get(currClass.toString()).get(name));
+         }
+         StringBuilder temp = new StringBuilder("TEMP ").append(fresh());
+         StringBuilder ans = new StringBuilder("\nBEGIN\nHLOAD ").append(temp).append(" TEMP 0 ");
+         ans.append(varIndex.get(currClass.toString()).get(name));
+         ans.append("\nRETURN ").append(temp).append("\nEND\n");
+         return ans;
+      }
       return new StringBuilder(name);
    }
 
@@ -858,8 +882,8 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nMOVE TEMP ").append(temp3).append(" PLUS TEMP ").append(temp3).append(" 1");
       ans.append("\nJUMP ").append(label1);
 
-      ans.append("\n").append(label2);
-      ans.append("\tHSTORE TEMP ").append(temp1).append(" 0 ").append(sz);
+      ans.append("\n").append(label2).append(" NOOP\n");
+      ans.append("HSTORE TEMP ").append(temp1).append(" 0 ").append(sz);
       ans.append("\nRETURN TEMP ").append(temp1).append("\nEND\n");
       n.f4.accept(this, argu);
       return ans;
@@ -955,10 +979,10 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
       ans.append("\nMOVE ").append(temp3).append(" PLUS ").append(temp3).append(" 1");
       ans.append("\nJUMP ").append(label1);
 
-      ans.append("\n").append(label2);
+      ans.append("\n").append(label2).append(" NOOP ");
       int index = 0;
       for (String key : ci.methods.keySet()) {
-         ans.append("\nHSTORE ").append(temp2).append(" ").append(index).append(" ").append(key);
+         ans.append("\nHSTORE ").append(temp2).append(" ").append(index).append("\t").append(key);
          if (!methodIndex.containsKey(className)) {
             methodIndex.put(className, new HashMap<>());
          }
@@ -981,7 +1005,7 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
 
    int getOffset(StringBuilder PE, StringBuilder name) {
       int ans = 0;
-      if(PE.toString().startsWith("TEMP")){
+      if (PE.toString().startsWith("TEMP")) {
          int temp = Integer.parseInt(PE.substring(5));
          if (temp == 0) {
             return methodIndex.get(currClass.toString()).get(name.toString());
@@ -993,9 +1017,57 @@ public class SecondPassVisitor<A> extends GJDepthFirst<StringBuilder,A> {
             }
          }
          String varType = varToClass.get(varName);
-         return methodIndex.get(varType).get(name.toString());
-      }
+         int x = methodIndex.get(varType).get(name.toString());
+         String name2 = varType + "___" + name;
+         if (ac.classes.get(varType).methods.get(name2) != null
+         && (ac.classes.get(varType).methods.get(name2)).length() > 0) {
+                  prevMessage = new StringBuilder(ac.classes.get(varType).methods.get(name2).split("->")[1]);
+         }
+         return x;
+      } else if (PE.toString().startsWith("\nBEGIN")) {
+         String code = PE.toString();
+         String target = name.toString();
 
-      return ans;
-   }  
+         String[] lines = code.split("\\n");
+         for (String line : lines) {
+            line = line.trim();
+            if (line.startsWith("HSTORE")) {
+               int tripleIdx = line.indexOf("___");
+               if (tripleIdx != -1) {
+                  String methodPart = line.substring(tripleIdx + 3).trim();
+                  if (methodPart.equals(target)) {
+                     String[] parts = line.split("\\s+");
+                     if (parts.length >= 4) {
+                        prevMessage = new StringBuilder(
+                              ac.classes.get(parts[4].substring(0, parts[4].indexOf("___"))).methods.get(parts[4])
+                                    .split("->")[1]);
+                        int offset = Integer.parseInt(parts[3]);
+                        return offset;
+                     }
+                  }
+               }
+            }
+         }
+         String line = lines[2];
+         String offset = line.substring((line.trim()).lastIndexOf(" ")+1);
+         String varName = "";
+         for (String s : varIndex.get(currClass.toString()).keySet()) {
+            Integer x = varIndex.get(currClass.toString()).get(s);
+            if (Objects.equals(x, Integer.valueOf(offset))) {
+               varName = s;
+            }
+         }
+         // System.out.println("1"+currClass+"1\t1"+varName+"1");
+         String type = ac.classes.get(currClass.toString()).vars.get(varName);
+         // System.out.println(methodIndex.get(type));
+         
+         return methodIndex.get(type).get(name.toString());
+      }
+      if (PE.toString().startsWith("\nCALL")) {
+         if (methodIndex.containsKey(prevMessage.toString()))
+            return methodIndex.get(prevMessage.toString()).get(name.toString());
+      }
+      System.out.println(PE);
+      return -1;
+   }
 }
