@@ -13,7 +13,12 @@ public class classinfo {
             classinfo ci = c.classes.get(parent);
             ci.addParentVars(c);
             ci.vars.forEach((k, v) -> vars.putIfAbsent(k, v));
-
+            HashMap<String, String> temp = new HashMap<>();
+            temp.putAll(vars);
+            vars.clear();
+            vars.putAll(ci.vars);
+            vars.putAll(temp);
+            temp.clear();
         }
     }
 
