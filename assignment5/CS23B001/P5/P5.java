@@ -14,22 +14,22 @@ public class P5 {
          FirstPassVisitor fp = new FirstPassVisitor();
 
          root.accept(fp, start);
+         for (BBinfo bb : fp.allBBs) {
+            bb.use.addAll(bb.def);
+         }
          LivenessAnalyzer la = new LivenessAnalyzer();
          la.allBBs = fp.allBBs;
          la.allEndingBBs = fp.allEndingBBs;
          la.allStartingBBs = fp.allStartingBBs;
          la.computeLiveness();
          la.computeLiveRanges();
-         // la.printLiveRanges();
          Map<AbstractMap.SimpleEntry<Integer, Integer>, AbstractMap.SimpleEntry<Boolean, Integer>> allocationMap = new HashMap<>();
          RegisterAllocation ra = new RegisterAllocation();
          ra.liveRanges = la.liveRanges;
          ra.allocationMap = allocationMap;
          ra.allocate();
-         // ra.printAllocations();
          SecondPassVisitor sp = new SecondPassVisitor();
          sp.allocationMap = allocationMap;
-         // System.out.println(allocationMap);
          sp.maxParams = fp.maxParams;
          System.out.println(root.accept(sp, ""));
          

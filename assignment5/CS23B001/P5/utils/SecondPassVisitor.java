@@ -82,7 +82,7 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
       currSpillCount = 0;
       currParams = 0;
       n.f0.accept(this, argu);
-      ans = ans + "MAIN [0] [100] [";
+      ans = ans + "MAIN [0] [1000] [";
       ans = ans + (maxParams+4) + "]\n";
       String f1ans = n.f1.accept(this, argu);
       ans = ans + f1ans+"\nEND\n";
@@ -117,7 +117,7 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
       ans = ans + "[";
       ans = ans + n.f2.accept(this, argu);
       currParams = Integer.parseInt(n.f2.f0.toString());
-      ans = ans + "] [100] [";
+      ans = ans + "] [1000] [";
       ans = ans + (maxParams+4) + "]\n";
       n.f3.accept(this, argu);
       ans = ans + n.f4.accept(this, argu);
@@ -165,7 +165,7 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
       String f1ans = n.f1.accept(this, argu);
       String stmt1="";
       if (f1ans.startsWith("SPILLEDARG ")) {
-         stmt1 = "MOVE v0 " + f1ans+"\n";
+         stmt1 = "\nALOAD v0 " + f1ans+"\n";
          f1ans = "v0";
       }
       ans = stmt1 + ans + f1ans + " " + n.f2.accept(this, argu)+"\n";
@@ -222,15 +222,15 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
       String f2ans = n.f2.accept(this, argu);
       String stmt1 = "", stmt2 = "";
       if (f1ans.startsWith("SPILLEDARG ")) {
-         stmt1 = "ASTORE " + f1ans+" v0\n";
+         stmt1 = "\nASTORE " + f1ans+" v0\n";
          f1ans = "v0";
       } 
       if (f2ans.startsWith("SPILLEDARG ")) {
-         stmt2 = "ALOAD v1 " + f2ans+"\n";
+         stmt2 = "\nALOAD v1 " + f2ans+"\n";
          f2ans = "v1";
       }
-      ans = stmt2 + ans + " " + f1ans + " " + f2ans + stmt1;
-      ans = ans + " " + n.f3.accept(this, argu) + "\n";
+      ans = stmt2 + ans + " " + f1ans + " " + f2ans ;
+      ans = ans + " " + n.f3.accept(this, argu) + "\n"+ stmt1;
       ans = "\n" + ans;
       return ans;
    }
@@ -257,7 +257,7 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
                ans = ans + f2ans;
             }
          }
-         ans = ans + "\nASTORE " + f1ans + " v0\n";
+         ans = ans + "\nASTORE " + f1ans + " v1\n";
       } else {
          ans = "MOVE " + f1ans + " ";
          if (indexForMove != -1) {
@@ -310,20 +310,20 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
     */
    public String visit(StmtExp n, String argu) {
       String ans = "\n";
-      ans = ans + saver("ASTORE",0,7,"s",0);
-      ans = ans + saver("ASTORE",0,3,"a",8);
+      ans = ans + saver("ASTORE",0,7,"s",Math.max(currParams-4,0));
+      ans = ans + saver("ASTORE",0,3,"a",8+Math.max(currParams-4,0));
       n.f0.accept(this, argu);
       ans=ans+n.f1.accept(this, argu);
       n.f2.accept(this, argu);
       String f3ans = n.f3.accept(this, argu);
       if (f3ans.startsWith("SPILLEDARG ")) {
-         ans =ans+ "\nALOAD v0" + f3ans;
+         ans =ans+ "\nALOAD v0 " + f3ans;
       } else {
          ans = ans + "\nMOVE v0 " + f3ans;
       }
       n.f4.accept(this, argu);
-      ans = ans+"\n" + saver("ALOAD",0,7,"s",0);
-      ans = ans+"\n" + saver("ALOAD",0,3,"a",8);
+      ans = ans+"\n" + saver("ALOAD",0,7,"s",0+Math.max(currParams-4,0));
+      ans = ans+"\n" + saver("ALOAD",0,3,"a",8+Math.max(currParams-4,0));
       ans = ans + "\nEND\n";
       return ans;
    }
@@ -337,8 +337,9 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
     */
    public String visit(Call n, String argu) {
       StringBuilder ans = new StringBuilder();
-      ans.append(saver("ASTORE", 0, 9, "t",isMain?0:8));
-      ans.append(saver("ASTORE", 0, 3, "a",10+(isMain?0:8)));
+      ans.append(saver("ASTORE", 0, 9, "t", isMain ? 0 : 12+Math.max(currParams-4,0)));
+      ans.append(saver("ASTORE", 0, 3, "a", 10 + (isMain ? 0 : 12)+Math.max(currParams-4,0)));
+
       n.f0.accept(this, argu);
       String f1ans = n.f1.accept(this, argu);
 
@@ -358,18 +359,33 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
          if (arg.startsWith("SPILLEDARG ")) {
             ans.append("ALOAD v1 ").append(arg).append("\n");
             arg = "v1";
+            if (i < 4) {
+               ans.append("MOVE a").append(i).append(" ").append(arg).append("\n");
+            } else {
+               ans.append("PASSARG ").append(i - 3).append(" ").append(arg).append("\n");
+            }
+         } else if (arg.startsWith("a")) {
+            int regNum = Integer.parseInt(arg.substring(1));
+            int spillIndex = 10 + (isMain ? 0 : 12) + regNum + Math.max(currParams - 4, 0);
+            if (i < 4) {
+               ans.append("ALOAD a").append(i).append(" SPILLEDARG ").append(spillIndex).append("\n");
+            } else {
+               ans.append("ALOAD v1 SPILLEDARG ").append(spillIndex).append("\n");
+               ans.append("PASSARG ").append(i - 3).append(" ").append("v1").append("\n");
+            }
+         } else {
+            if (i < 4) {
+               ans.append("MOVE a").append(i).append(" ").append(arg).append("\n");
+            } else {
+               ans.append("PASSARG ").append(i - 3).append(" ").append(arg).append("\n");
+            }
          }
 
-         if (i < 4) {
-            ans.append("MOVE a").append(i).append(" ").append(arg).append("\n");
-         } else {
-            ans.append("PASSARG ").append(i - 3).append(" ").append(arg).append("\n");
-         }
       }
       ans.append("CALL ").append(f1ans).append("\n");
-      ans.append(saver("ALOAD", 0, 9, "t",isMain?0:8));
-      ans.append(saver("ALOAD", 0, 3, "a",10+(isMain?0:8)));
-      indexForMove=ans.length();
+      ans.append(saver("ALOAD", 0, 9, "t", isMain ? 0 : 12+Math.max(currParams-4,0)));
+      ans.append(saver("ALOAD", 0, 3, "a", 10 + (isMain ? 0 : 12+Math.max(currParams-4,0))));
+      indexForMove = ans.length();
       ans.append("v0");
       return ans.toString();
    }
@@ -452,7 +468,6 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
          return getParams(temp);
       }
       int line = n.f0.beginLine;
-      // System.out.println(line+" "+temp);
       AbstractMap.SimpleEntry<Boolean, Integer> val = allocationMap.get(new AbstractMap.SimpleEntry<>(temp, line));
       if (val.getKey()) {
          if (isMain) {
