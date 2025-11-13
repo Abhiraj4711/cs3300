@@ -23,7 +23,6 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
       "t0","t1","t2","t3","t4","t5","t6","t7","t8","t9"
    };
    public Map<AbstractMap.SimpleEntry<Integer, Integer>, AbstractMap.SimpleEntry<Boolean, Integer>> allocationMap = new HashMap<>();
-   int currSpillCount = 0;
    int currParams = 0;
    int indexForMove = -1;
    boolean isMain = false;
@@ -79,15 +78,13 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
    public String visit(Goal n, String argu) {
       String ans = "";
       isMain = true;
-      currSpillCount = 0;
       currParams = 0;
       n.f0.accept(this, argu);
-      ans = ans + "MAIN [0] [1000] [";
+      ans = ans + "MAIN [0] [2000] [";
       ans = ans + (maxParams+4) + "]\n";
       String f1ans = n.f1.accept(this, argu);
       ans = ans + f1ans+"\nEND\n";
       n.f2.accept(this, argu);
-      currSpillCount = 0;
       currParams = 0;
       isMain = false;
       ans = ans + n.f3.accept(this, argu);
@@ -111,17 +108,15 @@ public class SecondPassVisitor extends GJDepthFirst<String,String> {
     */
     public String visit(Procedure n, String argu) {
       String ans = "";
-      currSpillCount = 0;
       ans=ans+n.f0.accept(this, argu);
       n.f1.accept(this, argu);
       ans = ans + "[";
       ans = ans + n.f2.accept(this, argu);
       currParams = Integer.parseInt(n.f2.f0.toString());
-      ans = ans + "] [1000] [";
+      ans = ans + "] [2000] [";
       ans = ans + (maxParams+4) + "]\n";
       n.f3.accept(this, argu);
       ans = ans + n.f4.accept(this, argu);
-      currSpillCount = 0;
       currParams = 0;
       return ans;
    }
